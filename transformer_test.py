@@ -3,7 +3,19 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
-from transformer import EncoderLayer, LayerNorm, Linear, from_pytorch, gelu, self_attention_, softmax_2d_
+from transformer import (
+    LayerNormParams,
+    LinearParams,
+    SelfAttentionParams,
+    TransformerBlockParams,
+    from_pytorch,
+    gelu,
+    layernorm2d_,
+    linear,
+    self_attention_,
+    softmax2d_,
+    transformer_block,
+)
 
 
 torch.set_grad_enabled(False)
@@ -23,7 +35,7 @@ def test_gelu():
 def test_softmax():
     x = torch.randn(16, 12)
     out_pt = torch.softmax(x, dim=1)
-    out_nb = softmax_2d_(x.numpy())
+    out_nb = softmax2d_(x.numpy())
 
     assert_allclose(out_pt, out_nb)
 
@@ -37,8 +49,8 @@ def test_layernorm():
     nn.init.normal_(layer.bias)
     out_pt = layer(x)
 
-    layer_nb = from_pytorch(LayerNorm(emb_dim), layer)
-    out_nb = layer_nb.forward(x.numpy())
+    params = from_pytorch(LayerNormParams(emb_dim), layer)
+    out_nb = layernorm2d_(x.numpy(), params)
 
     assert_allclose(out_pt.numpy(), out_nb)
 
@@ -49,8 +61,8 @@ def test_linear():
     x = torch.randn((4, in_dim))
     out_pt = layer(x)
 
-    layer_nb = from_pytorch(Linear(in_dim, out_dim), layer)
-    out_nb = layer_nb.forward(x.numpy())
+    params = from_pytorch(LinearParams(in_dim, out_dim), layer)
+    out_nb = linear(x.numpy(), params)
 
     assert_allclose(out_pt.numpy(), out_nb)
 
@@ -61,10 +73,8 @@ def test_self_attention():
     x = torch.randn(4, emb_dim)
     out_pt, _ = layer(x, x, x, need_weights=False)
 
-    x_np = x.numpy()
-    w_qkv = layer.in_proj_weight.numpy()
-    w_out = layer.out_proj.weight.numpy()
-    out_nb = self_attention_(x_np, w_qkv, w_out, layer.num_heads)
+    params = from_pytorch(SelfAttentionParams(emb_dim, n_heads), layer)
+    out_nb = self_attention_(x.numpy(), params)
 
     assert_allclose(out_pt.numpy(), out_nb)
 
@@ -81,8 +91,7 @@ def test_encoder_layer():
     x = torch.randn(4, emb_dim)
     out_pt = layer(x)
 
-    x_np = x.numpy()
-    layer_nb = from_pytorch(EncoderLayer(emb_dim, n_heads), layer)
-    out_nb = layer_nb.forward(x_np)
+    params = from_pytorch(TransformerBlockParams(emb_dim, n_heads), layer)
+    out_nb = transformer_block(x.numpy(), params)
 
     assert_allclose(out_pt.numpy(), out_nb)
